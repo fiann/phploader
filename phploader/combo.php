@@ -26,6 +26,9 @@
         etc...
 */
 
+// Set our timezone
+date_default_timezone_set('UTC');
+
 require "./combo_functions.inc.php";
 
 //Web accessible path to the YUI PHP loader lib directory (Override as needed)
@@ -62,6 +65,9 @@ if (isset($queryString) && !empty($queryString)) {
         $loader = new YAHOO_util_Loader($yuiVersion);
         $base   = PATH_TO_LIB . $yuiVersion . "/build/";
         $loader->base = $base; 
+        // enable/disable the APC cache during library development
+        $loader->disableAPC = true;
+
 
         //Detect and set a filter as needed (defaults to minified version)
         if (strpos($queryString, "-debug.js") !== false) {
@@ -97,7 +103,7 @@ if (isset($queryString) && !empty($queryString)) {
         header("Content-Type: " . $contentType);
         if ($contentType == "application/x-javascript") {
             $rawScript = $loader->script_raw();
-            if (APC_AVAIL === true) {
+            if (APC_AVAIL === true && !$loader->disableAPC) {
                 apc_store(server(true), $rawScript, APC_TTL);
             }
             echo $rawScript;
@@ -126,7 +132,7 @@ if (isset($queryString) && !empty($queryString)) {
             //Cleanup build path dups caused by relative paths that already included the build directory
             $rawCSS = str_replace("/build/build/", "/build/", $rawCSS);
             
-            if (APC_AVAIL === true) {
+            if (APC_AVAIL === true && !$loader->disableAPC) {
                 apc_store(server(true), $rawCSS, APC_TTL);
             }
             echo $rawCSS;

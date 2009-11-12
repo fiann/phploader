@@ -151,6 +151,8 @@ class YAHOO_util_Loader {
 
     var $cacheFound = false;
     var $delayCache = false;
+    // enable/disable the APC cache
+    var $disableAPC = false;
     
     /* If the version is set, a querystring parameter is appended to the
     * end of all generated URLs.  This is a cache busting hack for environments
@@ -1335,7 +1337,7 @@ class YAHOO_util_Loader {
             //$this->log("CONTENT: " . $remote_content);
 
             // save the contents of the remote url for 30 minutes
-            if ($this->apcAvail === true) {
+            if ($this->apcAvail === true && !$this->disableAPC) {
                 apc_store($url, $remote_content, $this->apcttl);
             }
 
