@@ -5,3 +5,8 @@ build_rollup_tmp/
 .svn
 CVS/
 js.jar
+
+# symlinks
+lib/[0-9+]*
+lib/jshub*
+phploader/lib
