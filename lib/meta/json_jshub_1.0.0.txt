@@ -3284,6 +3284,98 @@
          }
       },
       
+      "hauthentication-capture":{
+         "path":"microformats/hauthentication-capture-min.js",
+         "name":"hauthentication-capture",
+         "type":"js",
+         "ext":false,
+         "requires":[
+           "microformats"
+         ],
+         "after":[
+           "microformats"
+         ],
+         "expanded":[
+
+         ],
+         "provides":{
+            "hauthentication-capture":true
+         }
+      },  
+      "hpage-capture":{
+         "path":"microformats/hpage-capture-min.js",
+         "name":"hpage-capture",
+         "type":"js",
+         "ext":false,
+         "requires":[
+           "microformats"
+         ],
+         "after":[
+           "microformats"
+         ],
+         "expanded":[
+
+         ],
+         "provides":{
+            "hpage-capture":true
+         }
+      },      
+      "hproduct-capture":{
+        "path":"microformats/hproduct-capture-min.js",
+        "name":"hproduct-capture",
+        "type":"js",
+        "ext":false,
+        "requires":[
+          "microformats"
+        ],
+        "after":[
+          "microformats"
+        ],
+        "expanded":[
+       
+        ],
+        "provides":{
+           "hproduct-capture":true
+        }
+      },
+      "hpurchase-capture":{
+         "path":"microformats/hpurchase-capture-min.js",
+         "name":"hpurchase-capture",
+         "type":"js",
+         "ext":false,
+         "requires":[
+           "microformats"
+         ],
+         "after":[
+           "microformats"
+         ],
+         "expanded":[
+
+         ],
+         "provides":{
+            "hpurchase-capture":true
+         }
+      },   
+      "microformats-capture":{
+         "name":"microformats-capture",
+         "type":"js",
+         "path":"microformats/microformats-capture-min.js",
+         "ext":false,
+         "requires":[
+            "microformats",
+            "hauthentication-capture",
+            "hpage-capture",
+            "hauthentication-capture",
+            "hauthentication-capture"
+         ],
+         "provides":{
+            "hauthentication-capture":true,
+            "hpage-capture":true,
+            "hproduct-capture":true,
+            "hpurchase-capture":true,
+            "microformats-capture":true
+         }
+      },
       
       
       "causata-transport":{
