@@ -1,5 +1,5 @@
 {
-  "base":"/core/js/src/modules/",
+  "base":"https://jshub.org/core/js/src/modules/",
   "skin":{
     "defaultSkin":"sam",
     "base":"assets/skins/",

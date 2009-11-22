@@ -63,11 +63,11 @@ namespace :custom do
   desc 'Create symlinks to JS src modules.'
   task :link_src do
     run "mkdir #{current_path}/lib/jshub_1.0.0"
-    run "ln -nfs /var/capistrano/jshub-core/current/app/javascripts/ #{current_path}/lib/jshub_1.0.0/build"
+    run "ln -nfs /var/capistrano/core/current/app/javascripts/ #{current_path}/lib/jshub_1.0.0/build"
     run "mkdir #{current_path}/lib/jshub_2.0.0"
-    run "ln -nfs /var/capistrano/jshub-core/current/app/javascripts/modules/ #{current_path}/lib/jshub_2.0.0/build"
+    run "ln -nfs /var/capistrano/core/current/app/javascripts/modules/ #{current_path}/lib/jshub_2.0.0/build"
   end
 
 end
 
-after "deploy:symlink",   "custom:link_webroot"
+after "deploy:symlink",   "custom:link_webroot", "custom:link_src"
