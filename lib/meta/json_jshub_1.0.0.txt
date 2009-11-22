@@ -1,5 +1,5 @@
 {
-  "base":"https://jshub.org/core/js/src/",
+  "base":"http://apis.jshub.org/core/js/src/",
   "moduleInfo":{
       "hub":{
          "path":"hub.js",
