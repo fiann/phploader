@@ -3128,6 +3128,24 @@
             "debug":true
          }
       },
+      "domready":{
+         "path":"domready/domready-min.js",
+         "name":"domready",
+         "type":"js",
+         "ext":false,
+         "requires":[
+
+         ],
+         "after":[
+
+         ],
+         "expanded":[
+
+         ],
+         "provides":{
+            "domready":true
+         }
+      },
       "form-transport":{
          "path":"form-transport/form-transport-min.js",
          "name":"form-transport",
@@ -3271,7 +3289,8 @@
            "logger", 
            "image-transport", 
            "form-transport", 
-           "plugins"
+           "plugins",
+           "domready"
          ],
          "after":[
            "yui"
@@ -3294,7 +3313,8 @@
            "logger", 
            "image-transport", 
            "form-transport", 
-           "plugins"
+           "plugins",
+           "domready"
          ],
          "after":[
            "yui-base",
