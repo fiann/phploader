@@ -28,6 +28,8 @@ define('YUI_GLOBAL',     'global');
 define('YUI_JS',         'js');
 define('YUI_JSON',       'JSON');
 define('YUI_MODULES',    'modules');
+define('YUI_SUBMODULES', 'submodules');
+define('YUI_EXPOUND',    'expound');
 define('YUI_NAME',       'name');
 define('YUI_OPTIONAL',   'optional');
 define('YUI_OVERRIDES',  'overrides');
@@ -48,6 +50,7 @@ define('YUI_TAGS',       'TAGS');
 define('YUI_TYPE',       'type');
 define('YUI_URL',        'url');
 
+
 /**
  * The YUI PHP loader base class which provides dynamic server-side loading for YUI
  * @class YAHOO_util_Loader
@@ -63,19 +66,33 @@ class YAHOO_util_Loader {
     */
     var $base = "";
 
-    var $filter = "";
-
-    // current target not used
-    var $target = "";
-
     /**
-    * Combined into a single request using the combo service to pontentially reduce the number of 
-    * http requests required.  This option is not supported when loading custom modules.
-    * @property combine
-    * @type boolean
-    * @default false
+    * A filter to apply to result urls. This filter will modify the default path for 
+    * all modules. The default path is the minified version of the files (e.g., event-min.js). 
+    * Changing the filter alows for picking up the unminified (raw) or debug sources.
+    * The default set of valid filters are:  YUI_DEBUG & YUI_RAW
+    * @property filter
+    * @type string (e.g.) 
+    * @default empty string (minified vesion)
     */
-    var $combine = false;
+    var $filter = "";
+    
+    /**
+    * An array of filters & filter replacement rules.  Used with $filter.
+    * @property filters
+    * @type array
+    * @default
+    */
+    var $filters = array();
+    
+    /**
+    * A list of modules to apply the filter to.  If not supplied, all
+    * modules will have any defined filters applied.  Tip: Useful for debugging.
+    * @property filterList
+    * @type array
+    * @default null
+    */
+    var $filterList = null;
 
     /**
     * Should we allow rollups
@@ -102,54 +119,117 @@ class YAHOO_util_Loader {
     */
     var $rollupsToTop = false;
 
-    // first pass through we will check for meta-modules and remove 
-    // dependencies where a supercedes is found.
-    // var $firstPass = true;
-
-    // the first time we output a module type we allow automatic rollups, this
-    // array keeps track of module types we have processed
+    /**
+    * The first time we output a module type we allow automatic rollups, this
+    * array keeps track of module types we have processed
+    * @property processedModuleTypes
+    * @type array
+    * @default
+    */
     var $processedModuleTypes = array();
 
-    // all required modules
+    /**
+    * All required modules
+    * @property requests
+    * @type array
+    * @default
+    */
     var $requests = array();
 
-    // modules that have been been outputted via getLink()
+    /**
+    * List of modules that have been been outputted via getLink() / getComboLink()
+    * @property loaded
+    * @type array
+    * @default
+    */
     var $loaded = array();
 
-    // list of all modules superceded by the list of required modules 
+    /**
+    * List of all modules superceded by the list of required modules 
+    * @property superceded
+    * @type array
+    * @default
+    */
     var $superceded = array();
 
-    // module load count to catch circular dependencies
-    // var $loadCount = array();
-
-    // keeps track of modules that were requested that are not defined
-    var $undefined = array();
-
-    var $dirty=true;
-    
-    var $sorted=null;
-    
-    var $accountedFor = array();
-
     /**
-    * A list of modules to apply the filter to.  If not supplied, all
-    * modules will have any defined filters applied.  Tip: Useful for debugging.
-    * @property filterList
+    * Keeps track of modules that were requested that are not defined
+    * @property undefined
+    * @type array
+    * @default
+    */
+    var $undefined = array();
+    
+    /**
+    * Used to determine if additional sorting of dependencies is required
+    * @property dirty
+    * @type boolean
+    * @default true
+    */
+    var $dirty = true;
+    
+    /**
+    * List of sorted modules
+    * @property sorted
     * @type array
     * @default null
     */
-    var $filterList = null;
+    var $sorted = null;
+    
+    /**
+    * List of modules the loader has aleady accounted for
+    * @property accountedFor
+    * @type array
+    * @default
+    */
+    var $accountedFor = array();
 
-    // the list of required skins
+    /**
+    * The list of required skins
+    * @property skins
+    * @type array
+    * @default
+    */
     var $skins = array();
-
+    
+    /**
+    * Contains the available module metadata
+    * @property modules
+    * @type array
+    * @default YUI module metadata for the specified release
+    */
     var $modules = array();
 
+    /**
+    * The APC cache key
+    * @property fullCacheKey
+    * @type string
+    * @default null
+    */
     var $fullCacheKey = null;
 
+    /**
+    * List of modules that have had their base pathes overridden
+    * @property baseOverrides
+    * @type array
+    * @default
+    */
     var $baseOverrides = array();
-
+    
+    /**
+    * Used to determine if we have an APC cache hit
+    * @property cacheFound
+    * @type boolean
+    * @default false
+    */
     var $cacheFound = false;
+    
+    /**
+    * Used to delay caching of module data
+    * @property delayCache
+    * @type boolean
+    * @default false
+    */
     var $delayCache = false;
     // enable/disable the APC cache
     var $disableAPC = false;
@@ -164,14 +244,50 @@ class YAHOO_util_Loader {
     var $version = null;
     var $versionKey = "_yuiversion";
 
-    // the skin definition
+    /* Holds the calculated skin definition
+    * @property skin
+    * @type array
+    * @default
+    */
     var $skin = array();
-
+    
+    /* Holds the module rollup metadata
+    * @property rollupModules
+    * @type array
+    * @default
+    */
     var $rollupModules = array();
+    
+    /* Holds global module information.  Used for global dependency support.
+    * Note: Does not appear to be in use by recent metadata.  Might be deprecated?
+    * @property globalModules
+    * @type array
+    * @default
+    */
     var $globalModules = array();
+    
+    /* Holds information about what modules satisfy the requirements of others
+    * @property satisfactionMap
+    * @type array
+    * @default
+    */
     var $satisfactionMap = array();
+    
+    /* Holds a cached module dependency list
+    * @property depCache
+    * @type array
+    * @default
+    */
     var $depCache = array();
-    var $filters = array();
+    
+    /**
+    * Combined into a single request using the combo service to pontentially reduce the number of 
+    * http requests required.  This option is not supported when loading custom modules.
+    * @property combine
+    * @type boolean
+    * @default false
+    */
+    var $combine = false;
 
     /**
     * The base path to the combo service.  Uses the Yahoo! CDN service by default.
@@ -183,8 +299,24 @@ class YAHOO_util_Loader {
     */
     var $comboBase = "http://yui.yahooapis.com/combo?";
     
-    // additional vars used to assist with combo handling
+    /**
+    * Holds the current combo url for the loaded CSS resources.  This is 
+    * built with addToCombo and retrieved with getComboLink.  Only used when the combine
+    * is enabled.
+    * @property cssComboLocation
+    * @type string
+    * @default null
+    */
     var $cssComboLocation = null;
+    
+    /**
+    * Holds the current combo url for the loaded JavaScript resources.  This is 
+    * built with addToCombo and retrieved with getComboLink.  Only used when the combine
+    * is enabled.
+    * @property jsComboLocation
+    * @type string
+    * @default null
+    */
     var $jsComboLocation  = null;
 
     /**
@@ -229,7 +361,7 @@ class YAHOO_util_Loader {
         $this->jsonAvail  = function_exists('json_encode');
         $this->customModulesInUse = empty($modules) ? false : true;
         $this->base = $yui_current[YUI_BASE];
-        $this->comboDefaultVersion = $yuiVersion; //$customModules
+        $this->comboDefaultVersion = $yuiVersion;
         $this->fullCacheKey = null;
         $cache = null;
 
@@ -239,12 +371,7 @@ class YAHOO_util_Loader {
         } 
         
         if ($cache) {
-
             $this->cacheFound = true;
-
-            // $this->log("using cache -------------------------------------------------------");
-            // $this->log(var_export($cache[YUI_DEPCACHE], true));
-            // $this->log("----------------------------------------------------------");
             $this->modules = $cache[YUI_MODULES];
             $this->skin = $cache[YUI_SKIN];
             $this->rollupModules = $cache[YUI_ROLLUP];
@@ -252,10 +379,7 @@ class YAHOO_util_Loader {
             $this->satisfactionMap = $cache[YUI_SATISFIES];
             $this->depCache = $cache[YUI_DEPCACHE];
             $this->filters = $cache[YUI_FILTERS];
-
         } else {
-
-            // $this->log("initializing metadata-------------------------------------------------------");
             // set up the YUI info for the current version of the lib
             if ($noYUI) {
                 $this->modules = array();
@@ -270,7 +394,6 @@ class YAHOO_util_Loader {
             $this->skin = $yui_current[YUI_SKIN];
             $this->skin['overrides'] = array();
             $this->skin[YUI_PREFIX] = "skin-";
-
             $this->filters = array(
                     YUI_RAW => array(
                             YUI_SEARCH => "-min\.js",
@@ -298,6 +421,10 @@ class YAHOO_util_Loader {
         }
     }
     
+    /**
+    * Used to update the APC cache
+    * @method updateCache
+    */
     function updateCache() {
         if ($this->fullCacheKey) {
             $cache = array();
@@ -324,11 +451,21 @@ class YAHOO_util_Loader {
             $this->loadSingle($arg);
         }
     }
-
+    
+    /**
+    * Used to mark a module type as processed
+    * @method setProcessedModuleType
+    * @param string $moduleType
+    */
     function setProcessedModuleType($moduleType='ALL') {
         $this->processedModuleTypes[$moduleType] = true;
     }
-
+    
+    /**
+    * Used to determine if a module type has been processed
+    * @method hasProcessedModuleType
+    * @param string $moduleType
+    */
     function hasProcessedModuleType($moduleType='ALL') {
         return isset($this->processedModuleTypes[$moduleType]);
     }
@@ -341,17 +478,14 @@ class YAHOO_util_Loader {
     function setLoaded() {
         $args = func_get_args();
 
-        // prevent rollups when no module type is specified
-        //$this->setProcessedModuleType(null);
-
         foreach ($args as $arg) {
             if (isset($this->modules[$arg])) {
                 $this->loaded[$arg] = $arg;
                 $mod = $this->modules[$arg];
 
                 $sups = $this->getSuperceded($arg);
+                // accounting for by way of supersede
                 foreach ($sups as $supname=>$val) {
-                    //$this->log("accounting for by way of supersede: " . $supname);
                     $this->loaded[$supname] = $supname;
                 }
 
@@ -362,21 +496,87 @@ class YAHOO_util_Loader {
                 error_log($msg, 0);
             }
         }
-
-        //var_export($this->loaded);
     }
+    
+    /**
+    * Sets up skin for skinnable modules
+    * @method skinSetup
+    * @param string $name module name
+    * @return {string}
+    */
+    function skinSetup($name) {
+        $skinName = null;
+        $dep = $this->modules[$name];
 
+        if ($dep && isset($dep[YUI_SKINNABLE])) {
+            $s = $this->skin;
+            
+            if (isset($s[YUI_OVERRIDES][$name])) {
+                foreach ($s[YUI_OVERRIDES][$name] as $name2 => $over2) {
+                    $skinName = $this->formatSkin($over2, $name);
+                }
+            } else {
+                $skinName = $this->formatSkin($s["defaultSkin"], $name);
+            }
+
+            // adding new skin module
+            $this->skins[] = $skinName;
+            $skin = $this->parseSkin($skinName);
+
+            // module-specific
+            if (isset($skin[2])) {
+                $dep = $this->modules[$skin[2]];
+                $package = (isset($dep[YUI_PKG])) ? $dep[YUI_PKG] : $skin[2];
+                $path = $package . '/' . $s[YUI_BASE] . $skin[1] . '/' . $skin[2] . '.css';
+                $this->modules[$skinName] = array(
+                        "name" => $skinName,
+                        "type" => YUI_CSS,
+                        "path" => $path,
+                        "after" => $s[YUI_AFTER]
+                    );
+
+            // rollup skin
+            } else {
+                $path = $s[YUI_BASE] . $skin[1] . '/' . $s[YUI_PATH];
+                $newmod = array(
+                        "name" => $skinName,
+                        "type" => YUI_CSS,
+                        "path" => $path,
+                        "rollup" => 3,
+                        "after" => $s[YUI_AFTER]
+                    );
+                $this->modules[$skinName] = $newmod;
+                $this->rollupModules[$skinName] = $newmod;
+            }
+
+        }    
+
+        return $skinName;
+    }
+    
+    /**
+    * Parses a module's skin.  A modules skin is typically prefixed.
+    * @method parseSkin
+    * @param string $name the name of a module to parse
+    * @return {array}
+    */
     function parseSkin($moduleName) {
         if (strpos( $moduleName, $this->skin[YUI_PREFIX] ) === 0) {
-            return split('-', $moduleName);
+            return explode('-', $moduleName);
         }
 
         return null;
     }
-
+    
+    /**
+    * Add prefix to module skin
+    * @method formatSkin
+    * @param string $skin the skin name
+    * @param string $moduleName the name of a module
+    * @return {string} prefixed skin name
+    */
     function formatSkin($skin, $moduleName) {
         $prefix = $this->skin[YUI_PREFIX];
-        //$prefix = (isset($this->skin[YUI_PREFIX])) ? $this->skin[YUI_PREFIX] : 'skin-';
         $s = $prefix . $skin;
         if ($moduleName) {
             $s = $s . '-' . $moduleName;
@@ -384,10 +584,13 @@ class YAHOO_util_Loader {
 
         return $s;
     }
-
-    function addSkin($skin) {
-    }
-
+    
+    /**
+    * Loads the requested module
+    * @method loadSingle
+    * @param string $name the name of a module to load
+    * @return {boolean}
+    */
     function loadSingle($name) {
         $skin = $this->parseSkin($name);
 
@@ -404,9 +607,6 @@ class YAHOO_util_Loader {
 
         if (isset($this->loaded[$name]) || isset($this->accountedFor[$name])) {
             // skip
-            //print_r($name);
-            //var_export($this->loaded);
-            //var_export($this->accountedFor);
         } else {
             $this->requests[$name] = $name;
             $this->dirty = true;
@@ -537,7 +737,6 @@ class YAHOO_util_Loader {
     * @return {string} Returns a JSON object with the required JavaScript and CSS components
     */
     function json($moduleType=null, $allowRollups=false, $skipSort=false, $full=false) {
-        //$this->firstPass = $allowRollups; // TODO: Seems like an awkward way to force it to not use rollups
         if (!$allowRollups) {
             $this->setProcessedModuleType($moduleType);
         }
@@ -581,26 +780,41 @@ class YAHOO_util_Loader {
     function raw($moduleType=null, $allowRollups=false, $skipSort=false) {
         return $this->processDependencies(YUI_RAW, $moduleType, $skipSort);
     }
-
+    
+    /**
+    * General logging function.  Writes a message to the PHP error log.
+    * @method log
+    * @param {string} msg Message to write
+    */
     function log($msg) {
         error_log($msg, 0);
     }
     
+    /**
+    * Markes a module as being accounted for.  Used in dependency testing.
+    * @method accountFor
+    * @param {string} name Module to mark as being accounted for
+    */
     function accountFor($name) {
-        //$this->log("accountFor: " . $name);
         $this->accountedFor[$name] = $name;
         
         if (isset($this->modules[$name])) {
             $dep = $this->modules[$name];
             $sups = $this->getSuperceded($name);
             foreach ($sups as $supname=>$val) {
-                // $this->log("accounting for by way of supersede: " . $supname);
+                // accounting for by way of supersede package
                 $this->accountedFor[$supname] = true;
             }
         }
     }
 
-    
+    /**
+    * Used during dependecy processing to prune modules from the list of modules requiring further processing
+    * @method prune
+    * @param {array} deps List of module dependencies
+    * @param {string} moduleType Type of modules to prune (i.e.) js or css
+    * @return {array}
+    */
     function prune($deps, $moduleType) {
         if ($moduleType) {
             $newdeps = array();
@@ -615,7 +829,13 @@ class YAHOO_util_Loader {
             return $deps;
         }
    }
-
+   
+   /**
+   * Use to get a list of modules superseded by the given module name
+   * @method getSuperceded
+   * @param {string} name Module name
+   * @return {array}
+   */
    function getSuperceded($name) {
         $key = YUI_SUPERSEDES . $name;
 
@@ -643,62 +863,6 @@ class YAHOO_util_Loader {
         $this->depCache[$key] = $sups;
         return $sups;
     }
-
-    
-    function skinSetup($name) {
-        $skinName = null;
-        $dep = $this->modules[$name];
-
-        // $this->log("Checking skin for " . $name);
-
-        if ($dep && isset($dep[YUI_SKINNABLE])) {
-
-            $s = $this->skin;
-            //print_r($s);
-            if (isset($s[YUI_OVERRIDES][$name])) {
-                foreach ($s[YUI_OVERRIDES][$name] as $name2 => $over2) {
-                    $skinName = $this->formatSkin($over2, $name);
-                }
-            } else {
-                $skinName = $this->formatSkin($s["defaultSkin"], $name);
-            }
-            
-            // $this->log("Adding new skin module " . $name . ": " . $skinName);
-
-            $this->skins[] = $skinName;
-
-            $skin = $this->parseSkin($skinName);
-
-            // module-specific
-            if (isset($skin[2])) {
-                $dep = $this->modules[$skin[2]];
-                $package = (isset($dep[YUI_PKG])) ? $dep[YUI_PKG] : $skin[2];
-                $path = $package . '/' . $s[YUI_BASE] . $skin[1] . '/' . $skin[2] . '.css';
-                $this->modules[$skinName] = array(
-                        "name" => $skinName,
-                        "type" => YUI_CSS,
-                        "path" => $path,
-                        "after" => $s[YUI_AFTER]
-                    );
-
-            // rollup skin
-            } else {
-                $path = $s[YUI_BASE] . $skin[1] . '/' . $s[YUI_PATH];
-                $newmod = array(
-                        "name" => $skinName,
-                        "type" => YUI_CSS,
-                        "path" => $path,
-                        "rollup" => 3,
-                        "after" => $s[YUI_AFTER]
-                    );
-                $this->modules[$skinName] = $newmod;
-                $this->rollupModules[$skinName] = $newmod;
-            }
-
-        }    
-
-        return $skinName;
-    }
     
     /**
     * Identify dependencies for a give module name
@@ -709,25 +873,84 @@ class YAHOO_util_Loader {
     * @return {array}
     */
     function getAllDependencies($mname, $loadOptional=false, $completed=array()) {
-
-        // $this->log("Building deps list for " . $mname);
-
         $key = YUI_REQUIRES . $mname;
         if ($loadOptional) {
             $key .= YUI_OPTIONAL;
         }
+        
         if (isset($this->depCache[$key])) {
-            // $this->log("Using cache " . $mname);
             return $this->depCache[$key];
         }
-
+        
         $m = $this->modules[$mname];
+        $mProvides = $this->getProvides($mname);
         $reqs = array();
+    
+	    //Some modules pretend to be others (override if this is the case)
+        if (isset($this->modules[$mname][YUI_EXPOUND])) {
+			if (!isset($completed[$mname])) {
+				$reqs = array_merge($completed, $this->getAllDependencies($this->modules[$mname][YUI_EXPOUND], $loadOptional, array($mname => true)));
+			}
+        }
 
+        //Add any requirements defined on the module itself
         if (isset($m[YUI_REQUIRES])) {
             $origreqs = $m[YUI_REQUIRES];
             foreach($origreqs as $r) {
-                $reqs[$r] = true;
+            	if (!isset($reqs[$r])) {
+            		$reqs[$r] = true;
+                	$reqs = array_merge($reqs, $this->getAllDependencies($r, $loadOptional, $reqs));
+            	}
+            }
+        }
+         
+        //Add any submodule requirements not provided by the rollups
+        if (isset($m[YUI_SUBMODULES])) {
+            foreach($m[YUI_SUBMODULES] as $submodule) {
+                $subreqs = $submodule[YUI_REQUIRES];
+                foreach($subreqs as $sr) {     
+                    if (!in_array($sr, $mProvides) && !in_array($sr, $this->accountedFor)) {
+		            	if (!isset($reqs[$sr])) {
+	                    	$reqs[$sr] = true; 
+	                        $reqs = array_merge($reqs, $this->getAllDependencies($sr, $loadOptional, $reqs));
+		            	}
+                    }
+                }
+            }
+        }
+        
+        //Add any superseded requirements not provided by the rollup and/or rollup submodules
+        if (isset($m[YUI_SUPERSEDES])) {
+            foreach($m[YUI_SUPERSEDES] as $supersededModule) {
+                if (isset($this->modules[$supersededModule][YUI_REQUIRES])) {
+                    foreach($this->modules[$supersededModule][YUI_REQUIRES] as $supersededModuleReq) {
+                        if (!in_array($supersededModuleReq, $mProvides)) {
+			            	if (!isset($reqs[$supersededModuleReq]))
+			            	{
+	                            $reqs[$supersededModuleReq] = true;
+	                            $reqs = array_merge($reqs, $this->getAllDependencies($supersededModuleReq, $loadOptional, $reqs));
+			            	}
+                        }
+                    }
+                }
+                
+                //Add any submodule requirements not provided by the rollup or originally requested module
+                if (isset($this->modules[$supersededModule][YUI_SUBMODULES])) {
+                    foreach($this->modules[$supersededModule][YUI_SUBMODULES] as $supersededSubmodule) {
+                        $ssmProvides = $this->getProvides($supersededModule);
+                        $supersededSubreqs = $supersededSubmodule[YUI_REQUIRES];
+                        foreach($supersededSubreqs as $ssr) {     
+                            if (!in_array($ssr, $ssmProvides)) {
+				            	if (!isset($reqs[$ssr]))
+				            	{
+                           	
+	                                $reqs[$ssr] = true;
+	                                $reqs = array_merge($reqs, $this->getAllDependencies($ssr, $loadOptional, $reqs));
+				            	}
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -736,41 +959,10 @@ class YAHOO_util_Loader {
             foreach($o as $opt) {
                 $reqs[$opt] = true;
             }
-
-        }
-
-        foreach ($reqs as $name=>$val) {
-
-            $skinName = $this->skinSetup($name);
-
-            if ($skinName) {
-                // $this->log("Adding skin req for " . $name . ": " . $skinName);
-                $reqs[$skinName] = true;
-            }
-    
-            //$this->log("recursing deps for " . $name);
-            if (!isset($completed[$name]) && isset($this->modules[$name])) {
-                $dep = $this->modules[$name];
-
-                $newreqs = $this->getAllDependencies($name, $loadOptional, $completed);
-                $reqs = array_merge($reqs, $newreqs);
-
-                //foreach ($newreqs as $newname=>$newval) {
-                    //if (!isset($reqs[$newname])) {
-                        //$reqs[$newname] = true;
-                    //}
-                //}
-
-            } else {
-
-                //$this->log("ERROR " . $name . " not defined");
-                //print_r(array_keys($this->modules));
-            }
-
         }
 
         $this->depCache[$key] = $reqs;
-
+        
         return $reqs;
     }
 
@@ -784,9 +976,7 @@ class YAHOO_util_Loader {
      * supplied $satisfier module
      */
     function moduleSatisfies($satisfied, $satisfier) {
-        //$this->log("moduleSatisfies: " . $satisfied . ", " . $satisfier); 
-        if($satisfied == $satisfier) { 
-            //$this->log("true");
+        if($satisfied == $satisfier) {
             return true;
         }
 
@@ -795,7 +985,6 @@ class YAHOO_util_Loader {
             return isset($satisfiers[$satisfier]);
         }
 
-        //$this->log("false");
         return false;
     }
 
@@ -816,16 +1005,12 @@ class YAHOO_util_Loader {
     * @method listSatisfies
     * @param {string} satisfied Module name
     * @param {array} moduleList List of modules names
+    * @return {boolean}
     */
     function listSatisfies($satisfied, $moduleList) {
-        //$this->log("listSatisfies: " . $satisfied . ", " . count($moduleList)); 
-
         if (isset($moduleList[$satisfied])) {
-            //$this->log("***satisfied by list " . $satisfied);
-            //$this->log("***satisfied by list " .  var_export($moduleList[$satisfied], true) );
             return true;
         } else {
-            
             if (isset($this->satisfactionMap[$satisfied])) {
                 $satisfiers = $this->satisfactionMap[$satisfied];
                 foreach ($satisfiers as $name=>$val) {
@@ -834,36 +1019,42 @@ class YAHOO_util_Loader {
                     }
                 }
             }
-        
         }
 
         return false;
     }
-
+    
+    /**
+    * Determine if rollup replacement threshold has been met
+    * @method checkThreshold
+    * @param {string} Module name
+    * @param {array} moduleList List of modules names
+    * @return {boolean}
+    */
     function checkThreshold($module, $moduleList) {
-
         if (count($moduleList) > 0 && isset($module[YUI_ROLLUP])) {
             $matched = 0;
-            //$thresh = (isset($module[YUI_ROLLUP])) ? $module[YUI_ROLLUP] : count($module[YUI_SUPERSEDES]);
             $thresh = $module[YUI_ROLLUP];
             foreach ($moduleList as $moduleName=>$moddef) {
                 if (in_array($moduleName, $module[YUI_SUPERSEDES])) {
                     $matched++;
                 }
             }
-
-            //$this->log("Module: " . var_export($module, true));
-            //$this->log("threshold number " . $matched . " of " . $thresh);
-
+            
             return ($matched >= $thresh);
         }
 
         return false;
     }
-
+    
+    /**
+    * Used to sort dependencies in the proper order (Note: only call this if the loader is dirty)
+    * @method sortDependencies
+    * @param {string} Module name
+    * @param {array} moduleList List of modules names
+    * @return {boolean}
+    */
     function sortDependencies($moduleType, $skipSort=false) {
-        // only call this if the loader is dirty
-
         $reqs = array();
         $top = array();
         $bot = array();
@@ -873,7 +1064,7 @@ class YAHOO_util_Loader {
 
         // add global dependenices so they are included when calculating rollups
         $globals = $this->getGlobalDependencies($moduleType);
-
+        
         foreach ($globals as $name=>$dep) {
             $reqs[$name] = true;
         }
@@ -883,13 +1074,13 @@ class YAHOO_util_Loader {
             $reqs[$name] = true;
             $dep = $this->modules[$name];
             $newreqs = $this->getAllDependencies($name, $this->loadOptional);
+            
             foreach ($newreqs as $newname=>$newval) {
                 if (!isset($reqs[$newname])) {
                     $reqs[$newname] = true;
                 }
             }
         }
-
 
         // if we skip the sort, we just return the list that includes everything that
         // was requested, all of their requirements, and global modules.  This is
@@ -898,42 +1089,29 @@ class YAHOO_util_Loader {
             return $this->prune($reqs, $moduleType);
         }
 
-        // $this->log("------------------------------------------------------------------");
-        // $this->log(var_export($reqs, true));
-        // $this->log("rollups------------------------------------------------------------------");
-        //$t1 = split(" ", microtime());
-        
-        //$this->log("accountedFor: " . var_export($this->accountedFor, true));
-
         // if we are sorting again after new modules have been requested, we
         // do not rollup, and we can remove the accounted for modules
         if (count($this->accountedFor) > 0 || count($this->loaded) > 0) {
             foreach ($this->accountedFor as $name=>$val) {
                 if (isset($reqs[$name])) {
-                    // $this->log( "removing satisfied req (accountedFor) " . $name . "\n");
                     unset($reqs[$name]);
                 }
             }
-
+            
+            // removing satisfied req (loaded)
             foreach ($this->loaded as $name=>$val) {
                 if (isset($reqs[$name])) {
-                    // $this->log( "removing satisfied req (loaded) " . $name . "\n");
                     unset($reqs[$name]);
                 }
             }
-
-        // otherwise, check for rollups
-        // } else if (!$this->hasProcessedModuleType($moduleType)) {
         } else if ($this->allowRollups) {
             // First we go through the meta-modules we know about to 
             // see if the replacement threshold has been met.
             $rollups = $this->rollupModules;
-            //$this->log( "testing rollups " . count($rollups) . "\n");
+
             if (count($rollups > 0)) {
                 foreach ($rollups as $name => $rollup) {
-                    //$this->log( "checking rollup " . $name . "\n");
                     if (!isset($reqs[$name]) && $this->checkThreshold($rollup, $reqs) ) {
-                        // $this->log( "rollup " . $name . "\n");
                         $reqs[$name] = true;
                         $dep = $this->modules[$name];
                         $newreqs = $this->getAllDependencies($name, $this->loadOptional, $reqs);
@@ -947,42 +1125,24 @@ class YAHOO_util_Loader {
             }
         }
 
-    //var_export($reqs);
-    //exit;
-
-        //$t2 = split(" ", microtime());
-        //$total = (($t2[1] - $t1[1]) + ($t2[0] - $t1[0]));
-        //$this->log("<----rollups: " . $total . "----------------------------");
-
         // clear out superceded packages
         foreach ($reqs as $name => $val) {
-
             $dep = $this->modules[$name];
 
             if (isset($dep[YUI_SUPERSEDES])) {
                 $override = $dep[YUI_SUPERSEDES];
-                //$this->log("override " . $name . ", val: " . $val . "\n");
+                
                 foreach ($override as $i=>$val) {
                     if (isset($reqs[$val])) {
                         unset($reqs[$val]);
-                        // $this->log( "Removing (superceded by val) " . $val . "\n");
                     }
 
-                    // debugging
                     if (isset($reqs[$i])) {
                         unset($reqs[$i]);
-                        // $this->log( "Removing (superceded by i) " . $i . "\n");
                     }
                 }
             }
         }
-
-        //$this->log("------------------------------------------------------------------");
-        //$this->log(var_export($reqs, true));
-        //$this->log("------------------------------------------------------------------");
-
-        //$this->log("globals to top------------------------------------------------------------------");
-        //$t1 = split(" ", microtime());
 
         // move globals to the top
         foreach ($reqs as $name => $val) {
@@ -994,30 +1154,19 @@ class YAHOO_util_Loader {
             }
         }
 
-        //$t2 = split(" ", microtime());
-        //$total = (($t2[1] - $t1[1]) + ($t2[0] - $t1[0]));
-        //$this->log("<----globals to top: " . $total . "-----------------------------" );
-
-        // merge new order if we have globals
-        
+        // merge new order if we have globals   
         if (count($top > 0)) {
             $notdone = array_merge($top, $notdone);
         }
-        
-        //$this->log("Not done: " . var_export($notdone, true) . ", loaded: " . var_export($this->loaded, true));
-        //$this->log("Not done: " . var_export($notdone, true));
 
         // keep track of what is accounted for
         foreach ($this->loaded as $name=>$module) {
             $this->accountFor($name);
         }
-        
-        // $this->log("done: " . var_export($this->loaded, true));
 
         // keep going until everything is sorted
         $count = 0;
         while (count($notdone) > 0) {
-            //$this->log("processing loop " . $count);
             if ($count++ > 200) {
                 $msg = "YUI_LOADER ERROR: sorting could not be completed, there may be a circular dependency";
                 error_log($msg, 0);
@@ -1026,102 +1175,61 @@ class YAHOO_util_Loader {
             
             // each pass only processed what has not been completed
             foreach ($notdone as $name => $val) {
-                //$this->log("processing notdone: " . $name . " of " . count($notdone));
-                //$this->log("----------------------------------------------------");
-                //$this->log(var_export($notdone, true));
-                //$this->log("----------------------------------------------------");
-                //$this->log("done: ");
-                //$this->log(var_export($this->loaded, true));
-                //$this->log("----------------------------------------------------");
-
-                $dep = $this->modules[$name];
+                $dep = $this->modules[$name];                
                 $newreqs = $this->getAllDependencies($name, $this->loadOptional);
-                
-                // $this->log($name . ": checking after " . var_export($newreqs, true));
-                // $this->log($name . ": checking after " . var_export($dep, true));
-                // add 'after' items
+                $this->accountFor($name);    
                 
                 //Detect if this module needs to be included after another one of the upcoming dependencies
                 if (isset($dep[YUI_AFTER])) {
                     $after = $dep[YUI_AFTER];
-                    //$this->log("* " .$name . ": has after " . $after);
+                    
                     foreach($after as $a) {
-                        //$this->log("** " .$name . ": needs to be after " . $a);
                         if (in_array($a, $notdone)) {
                             $newreqs[$a] = true;
                         }
                     }
                 }
 
-                $failed = false;
-
-                if (count($newreqs) == 0) {
-                    //$this->log("-----No requirements: "  . $name);
-                    $sorted[$name] = $name;
-                    $this->accountFor($name);
-                    unset($notdone[$name]);
-                } else {
+                if (!empty($newreqs)) {
                     foreach ($newreqs as $depname=>$depval) {
-                        //$this->log("accountedFor: " . var_export($this->accountedFor, true));
-                        //$this->log("checking " . $depname . " newreqs: " . var_export($newreqs, true));
                         // check if the item is accounted for in the $done list
-                        if (isset($this->accountedFor[$depname])) {
-                            //$this->log("----Satisfied by 'accountedfor' list: " . $depname);
-                        } else if ($this->listSatisfies($depname, $sorted)) {
-                            //$this->log("----Satisfied by 'done' list: " . $depname);
+                        if (isset($this->accountedFor[$depname]) || $this->listSatisfies($depname, $sorted)) {
+                        	//unset($notdone[$depname]);
                         } else {
-                            $failed = true;
-
                             $tmp = array();
                             $found = false;
                             foreach ($notdone as $newname => $newval) {
                                 if ($this->moduleSatisfies($depname, $newname)) {
-                                //if ($newname != $depname && $this->moduleSatisfies($depname, $newname)) {
                                     $tmp[$newname] = $newname;
                                     unset($notdone[$newname]);
                                     $found = true;
-                                    //$this->log("moving " . $depname . " because it satisfies " . $name);
                                     break; // found something that takes care of the dependency, so jump out
                                 }
                             }
+                            
                             if ($found) {
-                                //$this->log("found merge: "  . var_export($tmp, true).  ", " . var_export($notdone, true));
                                 // this should put the module that handles the dependency on top, immediately
                                 // over the the item with the missing dependency
                                 $notdone = array_merge($tmp, $notdone);
-                                //$this->log("after merge: "  . var_export($notdone, true));
                             } else {
-                                $msg = "YUI_LOADER ERROR: requirement for " . $depname . " (needed for " . $name . ") not found when sorting";
-                                error_log($msg, 0);
-                                $notdone[$name] = $name;
-                                return array_merge($sorted, $notdone);
+                                //Requirement was missing and not found within the current notdone list.  Add and try again.
+                                $notdone[$depname] = $depname;
                             }
                             
-                            //$this->log("bouncing out of loops");
                             break(2); // break out of this iteration so we can get the missed dependency
-
                         }
                     }
-                    // if so, add to the the sorted array, removed from notdone and add to done
-                    if (!$failed) {
-                        //$this->log("----All requirements satisfied: " . $name);
-                        $sorted[$name] = $name;
-                        $this->accountFor($name);
-                        unset($notdone[$name]);
-                    }
                 }
+            
+                $sorted[$name] = $name;
+                unset($notdone[$name]);
             }
         }
-
-        //print_r("before skin");
-
-        //foreach ($reqs as $name => $val) {
+        
+        //Deal with module skins
         foreach ($sorted as $name => $val) {
             $skinName = $this->skinSetup($name);
         }
-
-        //print_r("mid skin");
-        //print_r($this->skins);
 
         if ( count($this->skins) > 0 ) {
             foreach ($this->skins as $name => $val) {
@@ -1129,20 +1237,11 @@ class YAHOO_util_Loader {
             }
         }
 
-        //print_r("after skin");
-
-        //$this->log("skins " . $this->skins);
-        //print_r(" <br /><br /><br /> skin");
-        //print_r($this->skins);
-        //print_r(" <br /><br /><br /> skin");
-
-        //$this->log("iterations" + $count);
         $this->dirty = false;
         $this->sorted = $sorted;
 
         // store the results, set clear the diry flag
         return $this->prune($sorted, $moduleType);
-
     }
  
     function mapSatisfyingModule($satisfied, $satisfier) {
@@ -1152,9 +1251,18 @@ class YAHOO_util_Loader {
 
         $this->satisfactionMap[$satisfied][$satisfier] = true;
     }
-
+    
+    /**
+    * Used to process the dependency list and retrieve the actual CSS and/or JavaScript resources
+    * in requested output format (e.g.) json, link/script nodes, embeddable code, php array, etc.
+    * @method processDependencies
+    * @param {string} outputType the format you like the response to be in
+    * @param {string} moduleType Type of module to return (i.e.) js or css
+    * @param {boolean} skipSort
+    * @param {boolean} showLoaded
+    * @return {varies} output format based on requested outputType
+    */
     function processDependencies($outputType, $moduleType, $skipSort=false, $showLoaded=false) {
-
         $html = '';
 
         // sort the output with css on top unless the output type is json
@@ -1180,7 +1288,6 @@ class YAHOO_util_Loader {
         }
 
         foreach ($sorted as $name => $val) {
-            
             if ($showLoaded || !isset($this->loaded[$name])) {
                 $dep = $this->modules[$name];
                 // only generate the tag once
@@ -1197,7 +1304,6 @@ class YAHOO_util_Loader {
                         $json[$dep[YUI_TYPE]][] = array(
                                 $this->getUrl($name) => $this->getProvides($name)
                             );
-
                         break;
                     case YUI_FULLJSON:
                         $json[$dep[YUI_NAME]] = array();
@@ -1240,6 +1346,9 @@ class YAHOO_util_Loader {
         // keep track of all the stuff we loaded so that we don't reload 
         // scripts if the page makes multiple calls to tags
         $this->loaded = array_merge($this->loaded, $sorted);
+        if ($this->combine === true) {
+            $this->clearComboLink($outputType);
+        }
 
         // return the raw data structure
         if ($outputType == YUI_DATA) {
@@ -1251,7 +1360,6 @@ class YAHOO_util_Loader {
         }
 
         return $html;
-
     }
 
     /**
@@ -1279,11 +1387,8 @@ class YAHOO_util_Loader {
         }
 
         if ($this->filter) {
-
             if (count($this->filterList) > 0 && !isset($this->filterList[$name])) {
-
                 // skip the filter
-
             } else if (isset($this->filters[$this->filter])) {
                 $filter = $this->filters[$this->filter];
                 $url = ereg_replace($filter[YUI_SEARCH], $filter[YUI_REPLACE], $url);
@@ -1294,9 +1399,7 @@ class YAHOO_util_Loader {
             $pre = (strstr($url, '?')) ? '&' : '?';
             $url .= $pre . $this->versionKey . '=' . $this->version;
         }
-
-        //$this->log("URL: " . $url, 0);
-
+        
         return $url;
     }
 
@@ -1307,17 +1410,14 @@ class YAHOO_util_Loader {
     * @return raw source
     */
     function getRemoteContent($url) {
-        
         $remote_content = null;
         if ($this->apcAvail === true) {
             $remote_content = apc_fetch($url);
         }        
 
         if (!$remote_content) {
-
             $ch = curl_init();
-
-            curl_setopt($ch, CURLOPT_URL, $url); // set url to post to 
+            curl_setopt($ch, CURLOPT_URL, $url);
             curl_setopt($ch, CURLOPT_FAILONERROR, 1); 
             
             //Doesn't work in safe mode or with openbase_dir enabled, see http://au.php.net/manual/ro/function.curl-setopt.php#71313.
@@ -1330,8 +1430,6 @@ class YAHOO_util_Loader {
             // curl_setopt($ch, CURLOPT_TIMEOUT, 3); // times out after 4s
 
             $remote_content = curl_exec($ch);
-
-            //$this->log("CONTENT: " . $remote_content);
 
             // save the contents of the remote url for 30 minutes
             if ($this->apcAvail === true && !$this->disableAPC) {
@@ -1438,6 +1536,23 @@ class YAHOO_util_Loader {
         }
         
         return $url;
+    }
+    
+    /**
+    * Clears the combo url of already loaded modules for a specific resource type.  Prevents
+    * duplicate loading of modules if the page makes multiple calls to tags, css, or script.
+    * @method clearComboLink
+    * @param {string} type Resource type (i.e.) YUI_JS or YUI_CSS
+    */
+    function clearComboLink($type) {
+        if ($type == YUI_CSS) {
+            $this->cssComboLocation = null;
+        } else if ($type == YUI_JS) {
+            $this->jsComboLocation = null;
+        } else {
+            $this->cssComboLocation = null;
+            $this->jsComboLocation  = null;
+        }
     }
     
     /**
