@@ -7,7 +7,7 @@ puts "Deploying to PRODUCTION"
 set :domain,      "jshub.org"
 
 # construct the path to the repository
-set :repository,   "git://github.com/metafeather/phploader.git"
+set :repository,   "git://github.com/jshub/phploader.git"
 
 #If you log into your server with a different user name than you are logged 
 #into your local machine with, youll need to tell Capistrano about that user 
