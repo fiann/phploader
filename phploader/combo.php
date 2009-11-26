@@ -104,13 +104,22 @@ if (isset($queryString) && !empty($queryString)) {
         if ($contentType == "application/x-javascript") {            
             $rawScript = $loader->script_raw();
             
-            //prepend header file
+            //prepend a header file if it exists
             $headerFile = $localPathToBuild . '/HEADER.js';
             if (file_exists($headerFile) && is_readable($headerFile)) {
                 $handle = fopen($headerFile, 'r');
                 $output = fread($handle, filesize($headerFile));
                 fclose($handle);
                 $rawScript = $output . $rawScript;
+            }
+
+            //append YUI().use() with modules list if requested
+            if (in_array('use', $yuiComponents)) {
+                // remove 'use' from the list of modules
+                function filter ($value) {return $value != 'use';};
+                $yuiComponentsNoUse = array_filter($yuiComponents, 'filter');
+                $yuiComponentsNoUse = array_values($yuiComponentsNoUse);
+                $rawScript = $rawScript . "YUI().use('" . implode("', '", $yuiComponentsNoUse) . "');";
             }
             
             if (APC_AVAIL === true && !$loader->disableAPC) {
@@ -141,6 +150,15 @@ if (isset($queryString) && !empty($queryString)) {
             
             //Cleanup build path dups caused by relative paths that already included the build directory
             $rawCSS = str_replace("/build/build/", "/build/", $rawCSS);
+
+            //prepend a header file if it exists
+            $headerFile = $localPathToBuild . '/HEADER.css';
+            if (file_exists($headerFile) && is_readable($headerFile)) {
+                $handle = fopen($headerFile, 'r');
+                $output = fread($handle, filesize($headerFile));
+                fclose($handle);
+                $rawCSS = $output . $rawCSS;
+            }
             
             if (APC_AVAIL === true && !$loader->disableAPC) {
                 apc_store(server(true), $rawCSS, APC_TTL);
