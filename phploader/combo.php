@@ -101,8 +101,18 @@ if (isset($queryString) && !empty($queryString)) {
         header("Cache-Control: max-age=315360000");
         header("Expires: " . date("D, j M Y H:i:s", strtotime("now + 10 years")) ." GMT");
         header("Content-Type: " . $contentType);
-        if ($contentType == "application/x-javascript") {
+        if ($contentType == "application/x-javascript") {            
             $rawScript = $loader->script_raw();
+            
+            //prepend header file
+            $headerFile = $localPathToBuild . '/HEADER.js';
+            if (file_exists($headerFile) && is_readable($headerFile)) {
+                $handle = fopen($headerFile, 'r');
+                $output = fread($handle, filesize($headerFile));
+                fclose($handle);
+                $rawScript = $output . $rawScript;
+            }
+            
             if (APC_AVAIL === true && !$loader->disableAPC) {
                 apc_store(server(true), $rawScript, APC_TTL);
             }
