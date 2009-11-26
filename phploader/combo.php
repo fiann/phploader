@@ -107,9 +107,8 @@ if (isset($queryString) && !empty($queryString)) {
             //prepend a header file if it exists
             $headerFile = $localPathToBuild . '/HEADER.js';
             if (file_exists($headerFile) && is_readable($headerFile)) {
-                $handle = fopen($headerFile, 'r');
-                $output = fread($handle, filesize($headerFile));
-                fclose($handle);
+                $output = file_get_contents($headerFile);
+                $output - $output ."\n";
                 $rawScript = $output . $rawScript;
             }
 
@@ -117,9 +116,11 @@ if (isset($queryString) && !empty($queryString)) {
             if (in_array('use', $yuiComponents)) {
                 // remove 'use' from the list of modules
                 function filter ($value) {return $value != 'use';};
-                $yuiComponentsNoUse = array_filter($yuiComponents, 'filter');
-                $yuiComponentsNoUse = array_values($yuiComponentsNoUse);
-                $rawScript = $rawScript . "YUI().use('" . implode("', '", $yuiComponentsNoUse) . "');";
+                $filteredYuiComponents = array_filter($yuiComponents, 'filter');
+                $filteredYuiComponents = array_values($filteredYuiComponents);
+                
+                // replace the default '*' entry with the module list
+                $rawScript = str_replace(".use('*'", ".use('" . implode("', '", $filteredYuiComponents) . "'", $rawScript);
             }
             
             if (APC_AVAIL === true && !$loader->disableAPC) {

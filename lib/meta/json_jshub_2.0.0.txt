@@ -3443,6 +3443,27 @@
          "provides":{
             "causata-transport":true
          }
+      },
+      "use":{
+         "path":"jshub/use-min.js",
+         "name":"use",
+         "type":"js",
+         "ext":false,
+         "requires":[
+           "yui-base"
+         ],
+         "after":[
+           "jshub-lite",
+           "jshub",
+           "yui-base",
+           "yui"
+         ],
+         "expanded":[
+
+         ],
+         "provides":{
+            "use":true
+         }
       }      
     }
 }
