@@ -120,7 +120,7 @@ if (isset($queryString) && !empty($queryString)) {
                 $filteredYuiComponents = array_values($filteredYuiComponents);
                 
                 // replace the default '*' entry with the module list
-                $rawScript = str_replace(".use('*'", ".use('" . implode("', '", $filteredYuiComponents) . "'", $rawScript);
+                $rawScript = str_replace('.use("*"', '.use("' . implode('", "', $filteredYuiComponents) . '"', $rawScript);
             }
             
             if (APC_AVAIL === true && !$loader->disableAPC) {
